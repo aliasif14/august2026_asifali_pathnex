@@ -1,0 +1,10 @@
+Ansible (broken) 
+name: Install Nginx on all hosts
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install nginx package
+      yum:
+        name: nginx
+        state: present
+
