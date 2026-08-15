@@ -1,0 +1,4 @@
+Shell Script — Print Date & Hostname
+#!/bin/bash
+echo "Date: $(date)"
+echo "Hostname: $(hostname)"

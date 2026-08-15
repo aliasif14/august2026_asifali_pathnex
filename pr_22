@@ -1,0 +1,30 @@
+pipeline { 
+    agent any 
+    stages { 
+        // Step 1: Compile the code first so everything is ready
+        stage('Build') { 
+            steps { 
+                sh 'mvn clean compile' 
+            } 
+        } 
+        
+        // Step 2: Run independent test suites at the same time to save time
+        stage('Parallel Testing') { 
+            parallel { 
+                stage('Unit Tests') { 
+                    steps { 
+                        // Runs only unit tests
+                        sh 'mvn test -Dtest=*UnitTest' 
+                    } 
+                } 
+                stage('Integration Tests') { 
+                    steps { 
+                        // Runs only integration tests
+                        sh 'mvn failsafe:integration-test' 
+                    } 
+                } 
+            } 
+        } 
+    } 
+}
+
