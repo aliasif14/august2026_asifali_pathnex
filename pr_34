@@ -1,0 +1,97 @@
+Ansible ensure file with content
+---
+- name: Create config file for Pathnex
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Write content to file
+      ansible.builtin.copy:
+        dest: /etc/pathnex.conf
+        content: |
+          Welcome to Pathnex DevOps Training
+          Today is Day 12
+        owner: root
+        group: root
+        mode: '0644'
+
+Terraform -RDS
+resource "aws_db_instance" "pathnex_rds" {
+  allocated_storage    = 20
+  engine               = "mysql"
+  instance_class       = "db.t3.micro"
+
+  db_name              = "pathnexdb"
+  username             = "admin"
+  password             = var.db_password
+
+  skip_final_snapshot  = true
+}
+
+
+Kubernetes- Rolling update
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: pathnex-rolling
+
+spec:
+  replicas: 3
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+
+  selector:
+    matchLabels:
+      app: roll
+
+  template:
+    metadata:
+      labels:
+        app: roll
+
+    spec:
+      containers:
+        - name: web
+          image: nginx
+
+
+Shell - Backup
+
+\#!/bin/bash
+
+SOURCE="/var/log"
+DEST="/backup/pathnex-$(date +%F).tar.gz"
+
+tar -czf "$DEST" "$SOURCE"
+
+echo "Backup created at: $DEST"
+
+pipeline {
+    agent any
+
+    environment {
+        INSTITUTE_NAME = "Pathnex"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'mvn clean compile'
+            }
+        }
+    }
+}
+
+Jenkins - multi branch 
+
