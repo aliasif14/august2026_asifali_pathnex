@@ -1,0 +1,132 @@
+Ansible
+- name: Install tool based on OS
+  hosts: all
+  become: yes
+  tasks:
+    - name: Install htop
+      ansible.builtin.yum:
+        name: htop
+        state: present
+      when: ansible_facts['os_family'] == "RedHat"
+
+Terraform
+# 1. Base VPC Resource
+resource "aws_vpc" "PathnexVPC" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_hostnames = true
+
+  tags = {
+    Name = "Pathnex-VPC"
+  }
+}
+
+# 2. Internet Gateway Resource
+resource "aws_internet_gateway" "PathnexIGW" {
+  vpc_id = aws_vpc.PathnexVPC.id
+
+  tags = {
+    Name = "Pathnex-IGW"
+  }
+}
+
+# 3. Subnet Resource
+resource "aws_subnet" "PathnexSubnet" {
+  vpc_id                  = aws_vpc.PathnexVPC.id
+  cidr_block              = "10.0.1.0/24"
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "Pathnex-Subnet"
+  }
+}
+
+# 4. Route Table Configuration
+resource "aws_route_table" "PathnexRT" {
+  vpc_id = aws_vpc.PathnexVPC.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+[O    gateway_id = aws_internet_gateway.PathnexIGW.id
+  }
+
+  tags = {
+    Name = "Pathnex-RouteTable"
+  }
+}
+
+# 5. Route Table Association Block
+resource "aws_route_table_association" "PathnexRTA" {
+  subnet_id      = aws_subnet.PathnexSubnet.id
+  route_table_id = aws_route_table.PathnexRT.id
+}
+
+
+Kubernetes
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pathnex-secret
+type: Opaque
+data:
+  # The base64 value decoded equals "pathnex123"
+  password: cGF0aG5leDEyMw==
+
+
+
+Shell script Loop
+#!/bin/bash
+
+# A finite iteration loop counting from 1 up to 10
+for i in {1..10}; do
+    echo "Number: $i"
+done
+
+
+Jenkins pipeline
+pipeline {
+    agent any
+    environment {
+        INSTITUTE_NAME = "Pathnex"
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                git url: 'https://github.com'
+            }
+        }
+        stage('Build') {
+            steps {
+                sh '''
+                    if [ -d ".m2" ]; then
+                        echo "Using cached dependencies"
+                    else
+                        echo "No cache found, initializing directory structure"
+                        mkdir -p .m2
+                    fi
+                    
+                    # Always compile code, pointing Maven directly to our workspace cache
+                    mvn clean compile -Dmaven.repo.local=.m2/repository
+                '''
+            }
+        }
+    }
+}
+
+
+Github CLI
+stages:
+  - build
+
+build:
+  stage: build
+  image: maven:3.8.1-jdk-17
+  cache:
+    key: maven-cache
+    paths:
+      - .m2/repository
+  script:
+    # Code is automatically cloned. Run compilation directly against the cached path.
+    - mvn clean compile -Dmaven.repo.local=.m2/repository
+
+
+
