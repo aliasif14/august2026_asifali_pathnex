@@ -1,0 +1,113 @@
+Ansible Roles, DynamoDB, StatefulSet, Service Check
+
+---
+- name: Install httpd
+  yum:
+    name: httpd
+    state: present
+  notify: Restart httpd
+
+- name: Start and enable httpd
+  service:
+    name: httpd
+    state: started
+    enabled: yes
+
+
+- name: Install web server
+  yum:
+    name: "{{ web_package }}"
+    state: present
+
+- name: Start web server
+  service:
+    name: "{{ web_service }}"
+    state: started
+    enabled: yes
+
+
+Terraform - DynamoDB Table
+resource "aws_dynamodb_table" "PathnexTable" {
+  name         = "PathnexTrainingTable"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "ID"
+
+  attribute {
+    name = "ID"
+    type = "S"
+  }
+
+  tags = {
+    Name = "Pathnex-DDB"
+  }
+}
+
+
+ Kubernetes — StatefulSet
+ apiVersion: apps/v1
+kind: StatefulSet
+
+metadata:
+  name: pathnex-db
+
+spec:
+  serviceName: "pathnex"
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: pathnex-db
+
+  template:
+    metadata:
+      labels:
+        app: pathnex-db
+
+    spec:
+      containers:
+        - name: db
+          image: mysql
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: "Pathnex123"
+
+
+Shell script
+#!/bin/bash
+
+SERVICE="sshd"
+
+if systemctl is-active --quiet "$SERVICE"; then
+    echo "$SERVICE is running"
+else
+    echo "$SERVICE is NOT running"
+fi
+
+
+
+Jenkins Pipeline — Promote Artifacts
+pipeline {
+    agent any
+
+    environment {
+        INSTITUTE_NAME = "Pathnex"
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                sh 'mvn clean package'
+            }
+        }
+
+        stage('Promote') {
+            steps {
+                input message: 'Promote artifacts to staging?'
+
+                sh 'echo "Promoting artifacts for $INSTITUTE_NAME"'
+            }
+        }
+    }
+}
+
+
