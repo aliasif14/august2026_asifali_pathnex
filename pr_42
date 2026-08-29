@@ -1,0 +1,66 @@
+Ansible — Use Ansible Facts
+---
+- name: Show system facts for Pathnex
+  hosts: all
+  gather_facts: yes
+
+  tasks:
+    - name: Print OS information
+      debug:
+        var: ansible_facts['os_family']
+
+
+
+Terraform — Variables, Outputs, tfvars
+variable "instance_type" {
+  description = "EC2 instance type"
+
+  type = string
+
+  default = "c6a.12xlarge"
+}
+
+Kubernetes — Node Affinity
+apiVersion: v1
+kind: Pod
+
+metadata:
+  name: pathnex-affinity
+
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: disktype
+
+
+
+Shell script - archive log files
+#!/bin/bash
+
+tar -czf "/backup/pathnex-logs-$(date +%F).tar.gz" /var/log/
+
+echo "Logs archived."
+
+Jenkins Pipeline — Rollback on Failurepipeline {
+    agent any
+
+    environment {
+        INSTITUTE_NAME = "Pathnex"
+    }
+
+    stages {
+        stage('Deploy') {
+            steps {
+                script {
+                    try {
+                        sh 'echo "Deploying $INSTITUTE_NAME application..."'
+
+                        // Simulate deployment failure
+                        sh 'exit 1'
+
+
+
+
