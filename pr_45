@@ -1,0 +1,131 @@
+Ansible — Install Nginx, Start + Enable Service
+
+---
+- name: Configure Nginx server
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Install Nginx
+      package:
+        name: nginx
+        state: present
+
+    - name: Start and enable Nginx
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+
+Terraform - create ec2
+resource "aws_instance" "pathnex_server" {
+  ami           = "ami-xxxxxxxxxxxxxxxxx"
+  instance_type = "c5.xlarge"
+
+  tags = {
+    Name  = "Pathnex-EC2"
+    Owner = "PathnexStudent"
+  }
+}
+
+
+
+Kubernetes - deployment with 3 replicas
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: pathnex-nginx
+
+spec:
+  replicas: 3
+
+  selector:
+    matchLabels:
+      app: pathnex-nginx
+
+  template:
+    metadata:
+      labels:
+        app: pathnex-nginx
+
+    spec:
+      containers:
+        - name: nginx
+          image: nginx
+
+
+
+
+Shell — Print Date, Uptime, Disk Usage
+
+#!/bin/bash
+
+echo "===== Date ====="
+date
+
+echo ""
+
+echo "===== Uptime ====="
+uptime
+
+echo ""
+
+echo "===== Disk Usage ====="
+df -h
+
+
+
+Jenkins Pipeline — Deploy to Multiple Environments
+pipeline {
+    agent any
+
+    environment {
+        INSTITUTE_NAME = "Pathnex"
+    }
+
+    stages {
+        stage('Deploy to Dev') {
+            steps {
+                sh 'echo "Deploying $INSTITUTE_NAME to Dev environment"'
+            }
+        }
+
+        stage('Deploy to Staging') {
+            steps {
+                input message: "Approve Staging Deployment?"
+
+                sh 'echo "Deploying $INSTITUTE_NAME to Staging environment"'
+            }
+        }
+
+        stage('Deploy to Prod') {
+            steps {
+                input message: "Approve Prod Deployment?"
+
+                sh 'echo "Deploying $INSTITUTE_NAME to Prod environment"'
+            }
+        }
+    }
+}
+
+
+
+Gitlab CLI -multi- environment
+stages:
+  - deploy
+
+variables:
+  INSTITUTE_NAME: "Pathnex"
+
+deploy-dev:
+  stage: deploy
+  image: alpine:latest
+
+  script:
+    - echo "Deploying $INSTITUTE_NAME to Dev environment"
+
+
+
+
