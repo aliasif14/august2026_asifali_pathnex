@@ -1,0 +1,242 @@
+Ansible — Create User + SSH Key + Bash Shell
+- name: Configure Pathnex admin user
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Create pathnex-admin user
+      user:
+        name: pathnex-admin
+        shell: /bin/bash
+        state: present
+        create_home: yes
+
+    - name: Add SSH public key
+      authorized_key:
+        user: pathnex-admin
+        key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+        state: present
+
+
+Terraform — Create EC2 with Project Tag
+provider "aws" {
+  region = "us-east-1"
+}
+
+data "aws_ami" "amazon_linux" {
+  most_recent = true
+
+  owners = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+}
+
+[Oresource "aws_instance" "pathnex_ec2" {
+  ami           = data.aws_ami.amazon_linux.id
+  instance_type = "t3.micro"
+
+  tags = {
+    Name    = "Pathnex-EC2"
+    Project = "Pathnex-Training"
+  }
+}
+
+
+Kubernetes — Deployment-2 + ClusterIP
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: pathnex-app
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: pathnex
+
+  template:
+    metadata:
+[O      labels:
+        app: pathnex
+
+    spec:
+      containers:
+        - name: nginx
+          image: nginx
+          ports:
+            - containerPort: 80
+
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: pathnex-service
+
+spec:
+  type: ClusterIP
+
+  selector:
+    app: pathnex
+
+  ports:
+    - port: 80
+      targetPort: 80
+
+
+
+Shell — Menu: IP / Disk / Memory
+#!/bin/bash
+
+echo "1. IP"
+echo "2. Disk"
+echo "3. Memory"
+
+read -p "Choose an option: " choice
+
+case $choice in
+    1)
+        echo "IP Address:"
+        hostname -I
+        ;;
+    2)
+        echo "Disk Usage:"
+        df -h
+        ;;
+    3)
+        echo "Memory Usage:"
+        free -h
+        ;;
+    *)
+        echo "Invalid option"
+        ;;
+esac
+
+
+Jenkins Declarative Pipeline
+pipeline {
+    agent any
+
+    environment {
+        INSTITUTE_NAME = "Pathnex"
+        TEAM = "DevOps"
+        ENV = "prod"
+        PROJECT = "Pathnex-Training"
+    }
+
+    stages {
+
+        stage('Infrastructure') {
+            steps {
+                echo "Creating infrastructure for $PROJECT"
+
+                sh '''
+                    cd terraform
+                    terraform init
+                    terraform apply -auto-approve
+                '''
+            }
+        }
+
+        stage('App Deployment') {
+            steps {
+                echo "Configuring application environment"
+
+                sh '''
+                    ansible-playbook \
+                    -i ansible/inventory \
+                    ansible/user.yml
+                '''
+
+                sh '''
+                    kubectl apply -f kubernetes/deployment.yaml
+                    kubectl apply -f kubernetes/service.yaml
+                '''
+            }
+        }
+
+        stage('Monitoring Checks') {
+            steps {
+                sh '''
+                    chmod +x scripts/system-menu.sh
+                    echo "1" | ./scripts/system-menu.sh
+                    echo "2" | ./scripts/system-menu.sh
+                    echo "3" | ./scripts/system-menu.sh
+                '''
+            }
+        }
+    }
+[O
+    post {
+        success {
+            echo "Pathnex deployment completed successfully"
+        }
+
+        failure {
+            echo "Pathnex deployment failed"
+        }
+    }
+}
+
+
+GitLab CI
+stages:
+  - infrastructure
+  - app_deployment
+  - monitoring_checks
+
+variables:
+  INSTITUTE_NAME: "Pathnex"
+  TEAM: "DevOps"
+  ENV: "prod"
+  PROJECT: "Pathnex-Training"
+
+
+infrastructure:
+  stage: infrastructure
+  image:
+    name: hashicorp/terraform:latest
+    entrypoint: [""]
+
+  script:
+    - echo "Creating EC2 for $PROJECT"
+    - cd terraform
+    - terraform init
+    - terraform apply -auto-approve
+
+
+app_deployment:
+  stage: app_deployment
+  image: alpine:latest
+
+  script:
+    - echo "Starting application deployment"
+    - echo "Running Ansible user configuration"
+    - echo "Deploying Kubernetes resources"
+
+    # Real commands require Ansible and kubectl
+    # to be installed in the GitLab Runner/image.
+
+
+monitoring_checks:
+  stage: monitoring_checks
+  image: alpine:latest
+
+  script:
+    - echo "1. IP Check"
+    - hostname -i
+
+    - echo "2. Disk Check"
+    - df -h
+
+    - echo "3. Memory Check"
+    - free -h
+
+
+
+
