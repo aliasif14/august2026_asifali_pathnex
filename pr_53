@@ -1,0 +1,352 @@
+Terraform
+provider "aws" {
+  region = "us-east-1"
+}
+
+data "aws_ami" "amazon_linux" {
+  most_recent = true
+
+  owners = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+}
+
+resource "aws_key_pair" "pathnex_key" {
+  key_name   = "pathnex-key"
+  public_key = file("~/.ssh/id_rsa.pub")
+}
+
+resource "aws_security_group" "pathnex_sg" {
+  name        = "pathnex-sg"
+  description = "Security group for Pathnex server"
+
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "pathnex_ec2" {
+  ami                    = data.aws_ami.amazon_linux.id
+  instance_type          = "c5.xlarge"
+  key_name               = aws_key_pair.pathnex_key.key_name
+  vpc_security_group_ids = [aws_security_group.pathnex_sg.id]
+
+  tags = {
+    Name    = "Pathnex-EC2"
+    Project = "Pathnex-Training"
+    Team    = "DevOps"
+    Env     = "prod"
+  }
+}
+
+resource "aws_ebs_volume" "pathnex_ebs" {
+  availability_zone = aws_instance.pathnex_ec2.availability_zone
+  size              = 20
+  type              = "gp3"
+
+  tags = {
+    Name = "Pathnex-EBS"
+  }
+}
+
+resource "aws_volume_attachment" "pathnex_attachment" {
+  device_name = "/dev/sdh"
+  volume_id   = aws_ebs_volume.pathnex_ebs.id
+  instance_id = aws_instance.pathnex_ec2.id
+}
+
+
+
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+  default     = "us-east-1"
+}
+
+output "instance_public_ip" {
+  description = "Public IP of Pathnex EC2"
+
+  value = aws_instance.pathnex_ec2.public_ip
+}
+
+Ansible — Install Nginx + Deploy
+---
+- name: Configure Pathnex web server
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Install nginx
+      yum:
+        name: nginx
+        state: present
+
+    - name: Deploy Pathnex HTML page
+      copy:
+        dest: /usr/share/nginx/html/index.html
+        content: |
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Pathnex</title>
+          </head>
+          <body>
+              <h1>Welcome to Pathnex</h1>
+              <p>Deployed using Ansible</p>
+          </body>
+          </html>
+
+    - name: Start and enable nginx
+      service:
+        name: nginx
+[O        state: started
+        enabled: yes
+
+Kubernetes — Deployment + PVC + NodePort
+
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: pathnex-app
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: pathnex
+
+  template:
+    metadata:
+      labels:
+        app: pathnex
+
+    spec:
+      containers:
+        - name: nginx
+          image: nginx
+
+          ports:
+            - containerPort: 80
+
+          volumeMounts:
+            - name: app-storage
+              mountPath: /usr/share/nginx/html
+
+      volumes:
+        - name: app-storage
+          persistentVolumeClaim:
+            claimName: pathnex-pvc
+
+	    apiVersion: v1
+kind: PersistentVolumeClaim
+
+metadata:
+  name: pathnex-pvc
+
+spec:
+  accessModes:
+    - ReadWriteOnce
+
+  resources:
+    requests:
+      storage: 1Gi
+
+
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: pathnex-service
+
+spec:
+  type: NodePort
+
+  selector:
+    app: pathnex
+
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: 30080
+
+
+
+
+Shell Script — Five System Checks
+#!/bin/bash
+
+echo "================================="
+echo "PATHNEX SYSTEM CHECK"
+echo "================================="
+
+echo
+echo "1. CPU"
+lscpu | grep "Model name"
+
+echo
+echo "2. MEMORY"
+free -h
+
+echo
+echo "3. DISK"
+df -h
+
+echo
+echo "4. IP ADDRESS"
+hostname -I
+[O
+echo
+echo "5. TOP PROCESS"
+ps -eo pid,ppid,cmd,%mem,%cpu --sort=-%cpu | head
+
+
+Jenkins Declarative Pipeline
+pipeline {
+    agent any
+
+    environment {
+        INSTITUTE_NAME = "Pathnex"
+        TEAM = "DevOps"
+        ENV = "prod"
+        PROJECT = "Pathnex-Training"
+    }
+
+    stages {
+
+        stage('Infrastructure') {
+            steps {
+                script {
+                    echo "Creating infrastructure for $PROJECT"
+
+                    sh '''
+                        cd terraform
+                        terraform init
+                        terraform apply -auto-approve
+                    '''
+                }
+            }
+        }
+
+        stage('App Deployment') {
+            steps {
+                script {
+                    echo "Deploying application for $INSTITUTE_NAME"
+
+                    sh '''
+                        ansible-playbook -i ansible/inventory \
+                        ansible/nginx.yml
+                    '''
+
+                    sh '''
+                        kubectl apply -f kubernetes/pvc.yaml
+                        kubectl apply -f kubernetes/deployment.yaml
+                        kubectl apply -f kubernetes/service.yaml
+                    '''
+                }
+            }
+        }
+
+        stage('Monitoring Checks') {
+            steps {
+                script {
+                    echo "Running monitoring checks"
+
+                    sh '''
+                        chmod +x scripts/system-check.sh
+                        ./scripts/system-check.sh
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pathnex deployment completed successfully"
+        }
+
+        failure {
+            echo "Pathnex deployment failed"
+        }
+    }
+}
+
+
+
+GitLab CI
+stages:
+  - infrastructure
+  - app_deployment
+  - monitoring_checks
+
+variables:
+  INSTITUTE_NAME: "Pathnex"
+  TEAM: "DevOps"
+  ENV: "prod"
+  PROJECT: "Pathnex-Training"
+
+infrastructure:
+  stage: infrastructure
+  image:
+    name: hashicorp/terraform:latest
+    entrypoint: [""]
+
+  script:
+    - echo "Creating infrastructure for $PROJECT"
+    - cd terraform
+    - terraform init
+    - terraform apply -auto-approve
+
+
+app_deployment:
+  stage: app_deployment
+  image: alpine:latest
+
+  script:
+    - echo "Deploying application for $INSTITUTE_NAME"
+    - echo "Running Ansible deployment"
+    - echo "Deploying Kubernetes resources"
+
+    # Real pipeline commands would require
+    # Ansible and kubectl to be available
+    # on the GitLab Runner or inside a custom image.
+
+
+monitoring_checks:
+  stage: monitoring_checks
+  image: alpine:latest
+
+  script:
+    - echo "Running system monitoring checks"
+    - echo "CPU Check"
+    - echo "Memory Check"
+    - echo "Disk Check"
+    - echo "IP Check"
+    - echo "Top Process Check"
+
+
